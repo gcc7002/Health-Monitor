@@ -1,5 +1,6 @@
 import streamlit as st
 import random
+from html import escape
 
 st.set_page_config(
     page_title="Health Monitoring App",
@@ -99,12 +100,18 @@ def display_indicator_status(color, status, messages):
         unsafe_allow_html=True
     )
     message = messages[status]
-    if status == "critical":
-        st.error(message)
-    elif status == "warning":
-        st.warning(message)
-    else:
-        st.success(message)
+    role = "alert" if status == "critical" else "status"
+    st.markdown(
+        f"<div class='indicator-feedback indicator-feedback-{status}' "
+        f"title='{escape(message, quote=True)}' role='{role}'>"
+        f"<span>{escape(message)}</span></div>",
+        unsafe_allow_html=True
+    )
+
+def display_indicator_card(label, value, color, status, messages):
+    with st.container(height=360, border=True):
+        st.metric(label=label, value=value)
+        display_indicator_status(color, status, messages)
 
 #------------------------------------------------
 
@@ -116,75 +123,111 @@ def main():
 
     # Health Indicators Section
     st.header("Health Indicators")
-    col1, col2, col3, col4, col5, col6, col7, col8 = st.columns(8)
-    with col1:
-        color, status = oxigen_saturation_indicator(spo2)
-        st.metric(label="Oxigen saturation", value=spo2)
-        display_indicator_status(color, status, {
-            "normal": "Oxygen saturation is within the normal range.",
-            "warning": "Oxygen saturation is slightly low. Monitor your health.",
-            "critical": "Low oxygen saturation! Seek medical attention."
-        })
-    with col2:
-        color, status = heart_rate_indicator(bpm)
-        st.metric(label="Heart Rate", value=bpm)
-        display_indicator_status(color, status, {
-            "normal": "Heart rate is within the normal range.",
-            "warning": "Heart rate is slightly abnormal. Monitor your health.",
-            "critical": "Abnormal heart rate! Seek medical attention."
-        })
-    with col3:
-        # Simulated blood pressure values
-        systolic = random.randint(90, 160)
-        diastolic = random.randint(60, 100)
-        color, status = pressure_indicator(systolic, diastolic)
-        st.metric(label="Blood Pressure", value=f"{systolic}/{diastolic}")
-        display_indicator_status(color, status, {
-            "normal": "Blood pressure is within the normal range.",
-            "warning": "Blood pressure is slightly elevated. Monitor your health.",
-            "critical": "High blood pressure! Seek medical attention."
-        })
-    with col4:
-        color, status = temperature_indicator(temperature)
-        st.metric(label="Temperature", value=f"{temperature:.1f} °C")
-        display_indicator_status(color, status, {
-            "normal": "Body temperature is within the normal range.",
-            "warning": "Body temperature is slightly elevated. Monitor your health.",
-            "critical": "Abnormal body temperature! Seek medical attention."
-        })
-    with col5:
-        color, status = hydration_indicator(hydration)
-        st.metric(label="Hydration Level", value=f"{hydration}%")
-        display_indicator_status(color, status, {
-            "normal": "Hydration level is within the normal range.",
-            "warning": "Hydration level is low. Increase water intake.",
-            "critical": "Hydration level is critically low. Seek medical attention."
-        })
-    with col6:
-        color, status = calories_indicator(calories)
-        st.metric(label="Calorie Intake", value=f"{calories} kcal")
-        display_indicator_status(color, status, {
-            "normal": "Calorie intake is within the target range.",
-            "warning": "Calorie intake is outside the target range. Monitor your intake.",
-            "critical": "Calorie intake is far outside the target range."
-        })
+    st.markdown(
+        """
+        <style>
+        .st-key-health-indicators-panel {
+            padding: 1.25rem !important;
+        }
+        .indicator-feedback {
+            height: 8rem;
+            width: 100%;
+            box-sizing: border-box;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            padding: 0.75rem;
+            border-radius: 0.5rem;
+        }
+        .indicator-feedback span {
+            display: -webkit-box;
+            -webkit-box-orient: vertical;
+            -webkit-line-clamp: 4;
+            overflow: hidden;
+        }
+        .indicator-feedback-normal {
+            background: rgba(0, 128, 0, 0.1);
+            border-left: 0.25rem solid green;
+        }
+        .indicator-feedback-warning {
+            background: rgba(255, 165, 0, 0.12);
+            border-left: 0.25rem solid orange;
+        }
+        .indicator-feedback-critical {
+            background: rgba(255, 0, 0, 0.1);
+            border-left: 0.25rem solid red;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True
+    )
+    left_panel, _ = st.columns([1, 1])
+    with left_panel:
+        with st.container(border=True, key="health-indicators-panel"):
+            row1 = st.columns(4)
+            with row1[0]:
+                color, status = oxigen_saturation_indicator(spo2)
+                display_indicator_card("Oxigen saturation", spo2, color, status, {
+                    "normal": "Oxygen saturation is within the normal range.",
+                    "warning": "Oxygen saturation is slightly low. Monitor your health.",
+                    "critical": "Low oxygen saturation! Seek medical attention."
+                })
+            with row1[1]:
+                color, status = heart_rate_indicator(bpm)
+                display_indicator_card("Heart Rate", bpm, color, status, {
+                    "normal": "Heart rate is within the normal range.",
+                    "warning": "Heart rate is slightly abnormal. Monitor your health.",
+                    "critical": "Abnormal heart rate! Seek medical attention."
+                })
+            with row1[2]:
+                # Simulated blood pressure values
+                systolic = random.randint(90, 160)
+                diastolic = random.randint(60, 100)
+                color, status = pressure_indicator(systolic, diastolic)
+                display_indicator_card("Blood Pressure", f"{systolic}/{diastolic}", color, status, {
+                    "normal": "Blood pressure is within the normal range.",
+                    "warning": "Blood pressure is slightly elevated. Monitor your health.",
+                    "critical": "High blood pressure! Seek medical attention."
+                })
+            with row1[3]:
+                color, status = temperature_indicator(temperature)
+                display_indicator_card("Temperature", f"{temperature:.1f} °C", color, status, {
+                    "normal": "Body temperature is within the normal range.",
+                    "warning": "Body temperature is slightly elevated. Monitor your health.",
+                    "critical": "Abnormal body temperature! Seek medical attention."
+                })
 
-    with col7:
-        color, status = sleep_hours_indicator(sleep_hours)
-        st.metric(label="Sleep Hours", value=f"{sleep_hours:.1f} hrs")
-        display_indicator_status(color, status, {
-            "normal": "Sleep duration is within the normal range.",
-            "warning": "Sleep duration is outside the recommended range. Monitor your sleep.",
-            "critical": "Insufficient or excessive sleep duration. Review your sleep habits."
-        })
-    with col8:
-        color, status = radiation_indicator(radiation)
-        st.metric(label="Radiation Exposure", value=f"{radiation:.2f} mSv")
-        display_indicator_status(color, status, {
-            "normal": "Radiation exposure is within the normal range.",
-            "warning": "Radiation exposure is slightly high. Monitor your exposure.",
-            "critical": "High radiation exposure! Seek medical attention."
-        })
+            row2 = st.columns(4)
+            with row2[0]:
+                color, status = hydration_indicator(hydration)
+                display_indicator_card("Hydration Level", f"{hydration}%", color, status, {
+                    "normal": "Hydration level is within the normal range.",
+                    "warning": "Hydration level is low. Increase water intake.",
+                    "critical": "Hydration level is critically low. Seek medical attention."
+                })
+            with row2[1]:
+                color, status = calories_indicator(calories)
+                display_indicator_card("Calorie Intake", f"{calories} kcal", color, status, {
+                    "normal": "Calorie intake is within the target range.",
+                    "warning": "Calorie intake is outside the target range. Monitor your intake.",
+                    "critical": "Calorie intake is far outside the target range."
+                })
+            with row2[2]:
+                color, status = sleep_hours_indicator(sleep_hours)
+                display_indicator_card("Sleep Hours", f"{sleep_hours:.1f} hrs", color, status, {
+                    "normal": "Sleep duration is within the normal range.",
+                    "warning": "Sleep duration is outside the recommended range. Monitor your sleep.",
+                    "critical": "Insufficient or excessive sleep duration. Review your sleep habits."
+                })
+            with row2[3]:
+                color, status = radiation_indicator(radiation)
+                display_indicator_card("Radiation Exposure", f"{radiation:.2f} mSv", color, status, {
+                    "normal": "Radiation exposure is within the normal range.",
+                    "warning": "Radiation exposure is slightly high. Monitor your exposure.",
+                    "critical": "High radiation exposure! Seek medical attention."
+                })
+    if st.button("health check"):
+        pass
 
 if __name__ == "__main__":
     main() 
