@@ -21,75 +21,90 @@ sleep_hours = random.uniform(4.0, 10.0)  # Simulated sleep hours value
 radiation = random.uniform(0.0, 5.0)  # Simulated radiation exposure value
 
 
-#These functions will return the color based on the value of the health indicators
+#These functions return the display color and status for each health indicator.
 
 colors = {"normal": "green", "warning": "orange", "critical": "red"}
 
 def oxigen_saturation_indicator(value):
     if value >= 95:
-        return colors["normal"]
+        return colors["normal"], "normal"
     elif 90 <= value < 95:
-        return colors["warning"]
+        return colors["warning"], "warning"
     else:
-        return colors["critical"]
+        return colors["critical"], "critical"
 
 def heart_rate_indicator(value):
     if 60 <= value <= 100:
-        return colors["normal"]
+        return colors["normal"], "normal"
     elif 50 <= value < 60 or 100 < value <= 110:
-        return colors["warning"]
+        return colors["warning"], "warning"
     else:
-        return colors["critical"]
+        return colors["critical"], "critical"
 
 def pressure_indicator(systolic, diastolic):
-    if systolic < 120 and diastolic < 80:
-        return colors["normal"]
+    if systolic >= 140 or diastolic >= 90:
+        return colors["critical"], "critical"
+    elif systolic < 120 and diastolic < 80:
+        return colors["normal"], "normal"
     elif (120 <= systolic < 130) and diastolic < 80:
-        return colors["warning"]
+        return colors["warning"], "warning"
     elif (130 <= systolic < 140) or (80 <= diastolic < 90):
-        return colors["warning"]
+        return colors["warning"], "warning"
     else:
-        return colors["critical"]
+        return colors["critical"], "critical"
 
 def temperature_indicator(value):
     if 36.1 <= value <= 37.2:
-        return colors["normal"]
-    elif 37.3 <= value <= 38.0:
-        return colors["warning"]
+        return colors["normal"], "normal"
+    elif 37.2 < value <= 38.0:
+        return colors["warning"], "warning"
     else:
-        return colors["critical"]
+        return colors["critical"], "critical"
 
 def hydration_indicator(value):
     if value >= 60:
-        return colors["normal"]
+        return colors["normal"], "normal"
     elif 50 <= value < 60:
-        return colors["warning"]
+        return colors["warning"], "warning"
     else:
-        return colors["critical"]
+        return colors["critical"], "critical"
 
 def calories_indicator(value):
     if 2000 <= value <= 2500:
-        return colors["normal"]
+        return colors["normal"], "normal"
     elif 1500 <= value < 2000 or 2500 < value <= 3000:
-        return colors["warning"]
+        return colors["warning"], "warning"
     else:
-        return colors["critical"]
+        return colors["critical"], "critical"
 
 def sleep_hours_indicator(value):
     if 7 <= value <= 9:
-        return colors["normal"]
+        return colors["normal"], "normal"
     elif 6 <= value < 7 or 9 < value <= 10:
-        return colors["warning"]
+        return colors["warning"], "warning"
     else:
-        return colors["critical"]
+        return colors["critical"], "critical"
 
 def radiation_indicator(value):
     if value < 1.0:
-        return colors["normal"]
+        return colors["normal"], "normal"
     elif 1.0 <= value < 3.0:
-        return colors["warning"]
+        return colors["warning"], "warning"
     else:
-        return colors["critical"]
+        return colors["critical"], "critical"
+
+def display_indicator_status(color, status, messages):
+    st.markdown(
+        f"<span style='color: {color};'>Status: {status.capitalize()}</span>",
+        unsafe_allow_html=True
+    )
+    message = messages[status]
+    if status == "critical":
+        st.error(message)
+    elif status == "warning":
+        st.warning(message)
+    else:
+        st.success(message)
 
 #------------------------------------------------
 
@@ -103,109 +118,73 @@ def main():
     st.header("Health Indicators")
     col1, col2, col3, col4, col5, col6, col7, col8 = st.columns(8)
     with col1:
-        st.metric(label="Oxigen saturation", value = spo2, delta_color=oxigen_saturation_indicator(spo2))
-        st.markdown(
-            f"<span style='color: {oxigen_saturation_indicator(spo2)};'>"
-            f"Status: {oxigen_saturation_indicator(spo2).capitalize()}</span>",
-            unsafe_allow_html=True
-        )
-        if spo2 < 90:
-            st.error("Warning: Low oxygen saturation! Seek medical attention.")
-        elif spo2 < 95 and spo2 >= 90:
-            st.warning("Info: Oxygen saturation is slightly low. Monitor your health.")
-        else:
-            st.success("Oxygen saturation is within the normal range.")
+        color, status = oxigen_saturation_indicator(spo2)
+        st.metric(label="Oxigen saturation", value=spo2)
+        display_indicator_status(color, status, {
+            "normal": "Oxygen saturation is within the normal range.",
+            "warning": "Oxygen saturation is slightly low. Monitor your health.",
+            "critical": "Low oxygen saturation! Seek medical attention."
+        })
     with col2:
-        st.metric(label="Heart Rate", value = bpm, delta_color=heart_rate_indicator(bpm))
-        st.markdown(
-            f"<span style='color: {heart_rate_indicator(bpm)};'>"
-            f"Status: {heart_rate_indicator(bpm).capitalize()}</span>",
-            unsafe_allow_html=True
-        )
-        if bpm < 50 or bpm > 110:
-            st.error("Warning: Abnormal heart rate! Seek medical attention.")
-        elif (50 <= bpm < 60) or (100 < bpm <= 110):
-            st.warning("Info: Heart rate is slightly abnormal. Monitor your health.")
-        else:
-            st.success("Heart rate is within the normal range.")
+        color, status = heart_rate_indicator(bpm)
+        st.metric(label="Heart Rate", value=bpm)
+        display_indicator_status(color, status, {
+            "normal": "Heart rate is within the normal range.",
+            "warning": "Heart rate is slightly abnormal. Monitor your health.",
+            "critical": "Abnormal heart rate! Seek medical attention."
+        })
     with col3:
         # Simulated blood pressure values
         systolic = random.randint(90, 160)
         diastolic = random.randint(60, 100)
-        st.metric(label="Blood Pressure", value=f"{systolic}/{diastolic}", delta_color=pressure_indicator(systolic, diastolic))
-        st.markdown(
-            f"<span style='color: {pressure_indicator(systolic, diastolic)};'>"
-            f"Status: {pressure_indicator(systolic, diastolic).capitalize()}</span>",
-            unsafe_allow_html=True
-        )
-        if systolic >= 140 or diastolic >= 90:
-            st.error("Warning: High blood pressure! Seek medical attention.")
-        elif (130 <= systolic < 140) or (80 <= diastolic < 90):
-            st.warning("Info: Blood pressure is slightly high. Monitor your health.")
-        elif (120 <= systolic < 130) and diastolic < 80:
-            st.warning("Info: Blood pressure is slightly elevated. Monitor your health.")
-        else:
-            st.success("Blood pressure is within the normal range.")
+        color, status = pressure_indicator(systolic, diastolic)
+        st.metric(label="Blood Pressure", value=f"{systolic}/{diastolic}")
+        display_indicator_status(color, status, {
+            "normal": "Blood pressure is within the normal range.",
+            "warning": "Blood pressure is slightly elevated. Monitor your health.",
+            "critical": "High blood pressure! Seek medical attention."
+        })
     with col4:
-        st.metric(label="Temperature", value = f"{temperature:.1f} °C", delta_color=temperature_indicator(temperature))
-        st.markdown(
-            f"<span style='color: {temperature_indicator(temperature)};'>"
-            f"Status: {temperature_indicator(temperature).capitalize()}</span>",
-            unsafe_allow_html=True
-        )
-        if temperature < 36.1 or temperature > 37.2:
-            st.error("Warning: Abnormal body temperature! Seek medical attention.")
-        elif 37.3 <= temperature <= 38.0:
-            st.warning("Info: Body temperature is slightly elevated. Monitor your health.")
-        else:
-            st.success("Body temperature is within the normal range.")
+        color, status = temperature_indicator(temperature)
+        st.metric(label="Temperature", value=f"{temperature:.1f} °C")
+        display_indicator_status(color, status, {
+            "normal": "Body temperature is within the normal range.",
+            "warning": "Body temperature is slightly elevated. Monitor your health.",
+            "critical": "Abnormal body temperature! Seek medical attention."
+        })
     with col5:
-        st.metric(label="Hydration Level", value = f"{hydration}%", delta_color=hydration_indicator(hydration))
-        st.markdown(
-            f"<span style='color: {hydration_indicator(hydration)};'>"
-            f"Status: {hydration_indicator(hydration).capitalize()}</span>",
-            unsafe_allow_html=True
-        )
-        if hydration < 20:
-            st.error("Warning: Severe dehydration! Seek medical attention.")
-        elif 20 <= hydration < 40:
-            st.warning("Info: Dehydration detected. Increase water intake.")
-        else:
-            st.success("Hydration level is within the normal range.")
+        color, status = hydration_indicator(hydration)
+        st.metric(label="Hydration Level", value=f"{hydration}%")
+        display_indicator_status(color, status, {
+            "normal": "Hydration level is within the normal range.",
+            "warning": "Hydration level is low. Increase water intake.",
+            "critical": "Hydration level is critically low. Seek medical attention."
+        })
     with col6:
-        st.metric(label="Calorie Intake", value = f"{calories} kcal", delta_color=calories_indicator(calories))
-        st.markdown(
-            f"<span style='color: {calories_indicator(calories)};'>"
-            f"Status: {calories_indicator(calories).capitalize()}</span>",
-            unsafe_allow_html=True
-        )
+        color, status = calories_indicator(calories)
+        st.metric(label="Calorie Intake", value=f"{calories} kcal")
+        display_indicator_status(color, status, {
+            "normal": "Calorie intake is within the target range.",
+            "warning": "Calorie intake is outside the target range. Monitor your intake.",
+            "critical": "Calorie intake is far outside the target range."
+        })
 
     with col7:
-        st.metric(label="Sleep Hours", value = f"{sleep_hours:.1f} hrs", delta_color=sleep_hours_indicator(sleep_hours))
-        st.markdown(
-            f"<span style='color: {sleep_hours_indicator(sleep_hours)};'>"
-            f"Status: {sleep_hours_indicator(sleep_hours).capitalize()}</span>",
-            unsafe_allow_html=True
-        )
-        if sleep_hours < 6:
-            st.error("Warning: Insufficient sleep! Seek medical attention.")
-        elif 6 <= sleep_hours < 7:
-            st.warning("Info: Sleep duration is slightly low. Monitor your health.")
-        else:
-            st.success("Sleep duration is within the normal range.")
+        color, status = sleep_hours_indicator(sleep_hours)
+        st.metric(label="Sleep Hours", value=f"{sleep_hours:.1f} hrs")
+        display_indicator_status(color, status, {
+            "normal": "Sleep duration is within the normal range.",
+            "warning": "Sleep duration is outside the recommended range. Monitor your sleep.",
+            "critical": "Insufficient or excessive sleep duration. Review your sleep habits."
+        })
     with col8:
-        st.metric(label="Radiation Exposure", value = f"{radiation:.2f} mSv", delta_color=radiation_indicator(radiation))
-        st.markdown(
-            f"<span style='color: {radiation_indicator(radiation)};'>"
-            f"Status: {radiation_indicator(radiation).capitalize()}</span>",
-            unsafe_allow_html=True
-        )
-        if radiation >= 3.0:
-            st.error("Warning: High radiation exposure! Seek medical attention.") 
-        elif 1.0 <= radiation < 3.0:
-            st.warning("Info: Radiation exposure is slightly high. Monitor your health.")
-        else:
-            st.success("Radiation exposure is within the normal range.")  
+        color, status = radiation_indicator(radiation)
+        st.metric(label="Radiation Exposure", value=f"{radiation:.2f} mSv")
+        display_indicator_status(color, status, {
+            "normal": "Radiation exposure is within the normal range.",
+            "warning": "Radiation exposure is slightly high. Monitor your exposure.",
+            "critical": "High radiation exposure! Seek medical attention."
+        })
 
 if __name__ == "__main__":
     main() 
