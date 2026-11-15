@@ -2,6 +2,10 @@ import streamlit as st
 import random
 from html import escape
 
+
+# Import the database path and save function.
+from storage import save_data
+
 st.set_page_config(
     page_title="Health Monitoring App",
     page_icon=":guardsman:",
@@ -161,7 +165,7 @@ def main():
         """,
         unsafe_allow_html=True
     )
-    left_panel, _ = st.columns([1, 1])
+    left_panel, right_panel = st.columns([1, 1])
     with left_panel:
         with st.container(border=True, key="health-indicators-panel"):
             row1 = st.columns(4)
@@ -226,8 +230,61 @@ def main():
                     "warning": "Radiation exposure is slightly high. Monitor your exposure.",
                     "critical": "High radiation exposure! Seek medical attention."
                 })
-    if st.button("health check"):
-        pass
+
+#------------------------------------------------
+#Here's the form that'll gonna register the data
+
+    with right_panel:
+        if not st.session_state.get("show_health_check_form", False):
+            st.subheader("Health Check")
+            if st.button("Perform Health Check", type="primary", key="open_health_check"):
+                st.session_state["show_health_check_form"] = True
+        if st.session_state.get("show_health_check_form", False):
+            st.subheader("Health Check")
+            if st.button("Close", key="close_health_check"):
+                st.session_state["show_health_check_form"] = False
+                st.rerun()
+            with st.form("health_check_form"):
+                form_col1, form_col2 = st.columns(2)
+                with form_col1:
+                    check_bpm = st.number_input(
+                        "Heart rate (bpm)", min_value=30, max_value=200,
+                        value=bpm, key="heart_rate_input"
+                    )
+                    check_spo2 = st.number_input(
+                        "Oxygen saturation (%)", min_value=70, max_value=100,
+                        value=spo2, key="spo2_input"
+                    )
+                    check_systolic = st.number_input(
+                        "Systolic blood pressure (mmHg)", min_value=80, max_value=200,
+                        value=systolic, key="systolic_input"
+                    )
+                with form_col2:
+                    check_diastolic = st.number_input(
+                        "Diastolic blood pressure (mmHg)", min_value=50, max_value=150,
+                        value=diastolic, key="diastolic_input"
+                    )
+                    check_temperature = st.number_input(
+                        "Body temperature (°C)", min_value=30.0, max_value=45.0,
+                        value=temperature, step=0.1, key="temperature_input"
+                    )
+                    check_sleep = st.number_input(
+                        "Sleep (hours)", min_value=0.0, max_value=24.0,
+                        value=sleep_hours, step=0.1, key="sleep_hours_input"
+                    )
+                submitted = st.form_submit_button("Evaluate", type="primary") 
+                if submitted:
+                    readings = {
+                        "heart_rate": check_bpm,
+                        "oxygen_saturation": check_spo2,
+                        "systolic_pressure": check_systolic,
+                        "diastolic_pressure": check_diastolic,
+                        "temperature": check_temperature,
+                        "sleep_hours": check_sleep
+                    }
+                    save_data(readings)
+                    st.success("Health check saved to the database.")
+
 
 if __name__ == "__main__":
     main() 
