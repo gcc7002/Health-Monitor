@@ -1,11 +1,12 @@
 import sqlite3
-import pandas as pd
+from datetime import datetime, time, timedelta
+from pathlib import Path
 
-from datetime import datetime
+import pandas as pd
 
 from indicators import CHECKIN_FIELDS, CHECKIN_OPTIONAL_FIELDS
 
-DB_PATH = "health.db"
+DB_PATH = Path(__file__).resolve().parent / "health.db"
 LEGACY_CHECKIN_FIELDS = (*CHECKIN_FIELDS, "sleep_hours")
 COLUMNS = list(LEGACY_CHECKIN_FIELDS)
 
@@ -59,6 +60,18 @@ def _insert_record(table, values, file_path):
         conn.close()
 
 
+def _insert_records(conn, table, records):
+    if not records:
+        return
+    columns = tuple(records[0])
+    placeholders = ", ".join("?" for _ in columns)
+    column_sql = ", ".join(columns)
+    conn.executemany(
+        f"INSERT INTO {table} ({column_sql}) VALUES ({placeholders})",
+        [tuple(record[column] for column in columns) for record in records],
+    )
+
+
 def _validate_time_period(start_at, end_at):
     start = datetime.fromisoformat(str(start_at))
     end = datetime.fromisoformat(str(end_at))
@@ -83,7 +96,8 @@ def _validate_optional_number(data, field, minimum=None, maximum=None):
 def load_data(file_path=DB_PATH):
     conn = sqlite3.connect(file_path)
     try:
-        df = pd.read_sql("SELECT * from checkins",
+        df = pd.read_sql(
+            "SELECT * FROM checkins ORDER BY timestamp, id",
             conn,
             parse_dates=["timestamp"],
         )
@@ -93,10 +107,18 @@ def load_data(file_path=DB_PATH):
 
 def get_last_value(column: str, file_path=DB_PATH):
     df = load_data(file_path)
+    if column not in df.columns:
+        conn = sqlite3.connect(file_path)
+        try:
+            columns = {
+                row[1] for row in conn.execute("PRAGMA table_info(checkins)")
+            }
+        finally:
+            conn.close()
+        if column not in columns:
+            raise KeyError(f"Unknown health data column: {column}")
     if df.empty:
         return None
-    if column not in df.columns:
-        raise KeyError(f"Unknown health data column: {column}")
     values = df[column].dropna()
     if values.empty:
         return None
@@ -330,7 +352,13 @@ def load_timeline(file_path=DB_PATH):
         event.update({
             "timestamp": item["timestamp"],
             "event_type": "Health check-in",
-            "context": item.get("measurement_context") or "Not specified",
+            "context": (
+                "Not specified"
+                if item.get("measurement_context") is None
+                or pd.isna(item.get("measurement_context"))
+                or not str(item.get("measurement_context")).strip()
+                else item.get("measurement_context")
+            ),
             "description": item.get("symptoms"),
             "bpm": item.get("bpm"),
             "bpm_source": item.get("measurement_source"),
@@ -378,7 +406,9 @@ def load_timeline(file_path=DB_PATH):
             "stress": item["stress"],
             "isolation": item["isolation"],
             "sleep_well": (
-                None if sleep_well is None else "Yes" if sleep_well else "No"
+                None
+                if sleep_well is None or pd.isna(sleep_well)
+                else "Yes" if sleep_well else "No"
             ),
             "observation": item["note"],
         })
@@ -410,8 +440,209 @@ def load_timeline(file_path=DB_PATH):
         timeline = timeline.sort_values("timestamp", ascending=False).reset_index(drop=True)
     return timeline
 
+
+def build_timeline_trend_data(timeline, metric):
+    """Return discrete trend points without combining different sources or contexts."""
+    metric_fields = {
+        "spo2": ("SpO₂", "spo2", "measurement_source"),
+        "systolic": ("Systolic pressure", "systolic", "measurement_source"),
+        "diastolic": ("Diastolic pressure", "diastolic", "measurement_source"),
+        "temperature": ("Temperature", "temperature", "measurement_source"),
+        "radiation": ("Radiation dose", "radiation", "radiation_source"),
+        "calories_burned_estimated": (
+            "Estimated calories burned",
+            "calories_burned_estimated",
+            "calories_source",
+        ),
+        "sleep_hours": ("Sleep duration", "sleep_hours", None),
+        "mood": ("Mood", "mood", None),
+    }
+    if metric != "heart_rate" and metric not in metric_fields:
+        raise KeyError(f"Unknown timeline trend: {metric}")
+
+    points = []
+    for event in timeline.to_dict("records"):
+        if metric == "heart_rate":
+            if event["event_type"] == "Health check-in":
+                candidates = [("Heart rate", "bpm", "bpm_source")]
+            elif event["event_type"] == "Activity":
+                candidates = [
+                    ("Average BPM", "bpm_average", "bpm_average_source"),
+                    ("Maximum BPM", "bpm_max", "bpm_max_source"),
+                ]
+            else:
+                candidates = []
+        else:
+            candidates = [metric_fields[metric]]
+
+        for measurement, field, source_field in candidates:
+            value = event.get(field)
+            if value is None or pd.isna(value):
+                continue
+            context = event.get("context")
+            context = (
+                "Not recorded"
+                if context is None or pd.isna(context) or not str(context).strip()
+                else str(context)
+            )
+            source = event.get(source_field) if source_field else None
+            if metric == "mood":
+                source = "Self-reported"
+            elif metric == "sleep_hours" and event["event_type"] == "Sleep":
+                source = "Derived from recorded sleep interval"
+            source = (
+                "Not recorded"
+                if source is None or pd.isna(source) or not str(source).strip()
+                else str(source)
+            )
+            points.append({
+                "timestamp": event["timestamp"],
+                "period_start": event.get("period_start"),
+                "period_end": event.get("period_end"),
+                "event_type": event["event_type"],
+                "context": context,
+                "measurement": measurement,
+                "source": source,
+                "value": float(value),
+                "series": (
+                    f"{event['event_type']} · {measurement} · "
+                    f"{context} · {source}"
+                ),
+            })
+
+    return pd.DataFrame(
+        points,
+        columns=(
+            "timestamp",
+            "period_start",
+            "period_end",
+            "event_type",
+            "context",
+            "measurement",
+            "source",
+            "value",
+            "series",
+        ),
+    ).sort_values("timestamp", ignore_index=True)
+
+
+def seed_demo_data(file_path=DB_PATH):
+    """Insert synthetic records only when all record tables are empty."""
+    init_db(file_path)
+    now = datetime.now().replace(microsecond=0)
+    demo_source = "Synthetic demo data"
+
+    checkins = []
+    for days_ago, context, bpm, spo2, systolic, diastolic, temperature in (
+        (6, "At rest", 72, 98, 118, 76, 36.8),
+        (4, "During activity", 118, 97, 124, 80, 37.1),
+        (2, "After exercise", 88, 98, 120, 78, 36.9),
+        (0, "At rest", 70, 99, 117, 75, 36.7),
+    ):
+        checkins.append({
+            "timestamp": (now - timedelta(days=days_ago)).isoformat(),
+            "spo2": spo2,
+            "bpm": bpm,
+            "systolic": systolic,
+            "diastolic": diastolic,
+            "temperature": temperature,
+            "sleep_hours": None,
+            "mood": None,
+            "radiation": None,
+            "measurement_context": context,
+            "measurement_source": demo_source,
+            "symptoms": None,
+            "observation": demo_source,
+            "radiation_source": None,
+        })
+
+    activities = []
+    for days_ago, activity_type, average, maximum, calories in (
+        (4, "Cycling", 125, 148, 260),
+        (2, "Resistance training", 112, 136, 190),
+    ):
+        start_at = (now - timedelta(days=days_ago)).replace(
+            hour=17, minute=30, second=0
+        )
+        end_at = start_at + timedelta(minutes=40)
+        activities.append({
+            "activity_type": activity_type,
+            "description": f"{demo_source} activity record",
+            "start_at": start_at.isoformat(),
+            "end_at": end_at.isoformat(),
+            "intensity": 5,
+            "bpm_average": average,
+            "bpm_average_source": demo_source,
+            "bpm_max": maximum,
+            "bpm_max_source": demo_source,
+            "calories_burned_estimated": calories,
+            "calories_source": demo_source,
+            "observation": demo_source,
+        })
+
+    wellbeing_records = []
+    for days_ago, mood, stress, isolation in (
+        (5, 3, "Moderate", "Some"),
+        (3, 4, "Low", "None"),
+        (1, 3, "Moderate", "Some"),
+    ):
+        wellbeing_records.append({
+            "timestamp": (now - timedelta(days=days_ago)).isoformat(),
+            "mood": mood,
+            "stress": stress,
+            "isolation": isolation,
+            "sleep_well": None,
+            "note": demo_source,
+        })
+
+    sleep_records = []
+    for days_ago, quality in ((5, "Good"), (3, "Fair"), (1, "Good")):
+        end_date = (now - timedelta(days=days_ago)).date()
+        end_at = datetime.combine(end_date, time(7))
+        start_at = end_at - timedelta(hours=7, minutes=30)
+        sleep_records.append({
+            "start_at": start_at.isoformat(),
+            "end_at": end_at.isoformat(),
+            "quality": quality,
+            "interruptions": None,
+            "observation": demo_source,
+        })
+
+    conn = sqlite3.connect(file_path)
+    try:
+        with conn:
+            conn.execute("BEGIN IMMEDIATE")
+            table_names = (
+                "checkins",
+                "activities",
+                "wellbeing_checkins",
+                "sleep_records",
+            )
+            populated = [
+                table
+                for table in table_names
+                if conn.execute(f"SELECT 1 FROM {table} LIMIT 1").fetchone()
+            ]
+            if populated:
+                raise ValueError(
+                    "Demo data can only be seeded when all record tables are empty; "
+                    "existing records were preserved."
+                )
+
+            _insert_records(conn, "checkins", checkins)
+            _insert_records(conn, "activities", activities)
+            _insert_records(conn, "wellbeing_checkins", wellbeing_records)
+            _insert_records(conn, "sleep_records", sleep_records)
+    finally:
+        conn.close()
+
+    return {
+        "checkins": len(checkins),
+        "activities": len(activities),
+        "wellbeing_checkins": len(wellbeing_records),
+        "sleep_records": len(sleep_records),
+    }
+
+
 if __name__ == "__main__":
-    init_db()
-    conn = sqlite3.connect(DB_PATH)
-    print(conn.execute("SELECT * FROM checkins").fetchall())
-    conn.close()
+    print(seed_demo_data())

@@ -54,54 +54,106 @@ THRESHOLDS = {
         "warning_min": 6,
         "warning_max": 10,
     },
-    "radiation": {"normal_max": 1.0, "warning_max": 3.0},
 }
 
 INDICATOR_MESSAGES = {
     "oxygen": {
-        "normal": "Oxygen saturation is within the normal range.",
-        "warning": "Oxygen saturation is slightly low. Monitor your health.",
-        "critical": "Low oxygen saturation! Seek medical attention.",
+        "normal": "Generic prototype reference only; not a clinical threshold or diagnosis.",
+        "warning": "Generic prototype reference only; not a clinical threshold or diagnosis.",
+        "critical": "Generic prototype reference only; not a clinical threshold or diagnosis.",
     },
     "heart_rate": {
-        "normal": "Heart rate is within the normal range.",
-        "warning": "Heart rate is slightly abnormal. Monitor your health.",
-        "critical": "Abnormal heart rate! Seek medical attention.",
+        "normal": "Generic prototype reference only; not a clinical threshold or diagnosis.",
+        "warning": "Generic prototype reference only; not a clinical threshold or diagnosis.",
+        "critical": "Generic prototype reference only; not a clinical threshold or diagnosis.",
     },
     "blood_pressure": {
-        "normal": "Blood pressure is within the normal range.",
-        "warning": "Blood pressure is slightly elevated. Monitor your health.",
-        "critical": "High blood pressure! Seek medical attention.",
+        "normal": "Generic prototype reference only; not a clinical threshold or diagnosis.",
+        "warning": "Generic prototype reference only; not a clinical threshold or diagnosis.",
+        "critical": "Generic prototype reference only; not a clinical threshold or diagnosis.",
     },
     "temperature": {
-        "normal": "Body temperature is within the normal range.",
-        "warning": "Body temperature is slightly elevated. Monitor your health.",
-        "critical": "Abnormal body temperature! Seek medical attention.",
+        "normal": "Generic prototype reference only; not a clinical threshold or diagnosis.",
+        "warning": "Generic prototype reference only; not a clinical threshold or diagnosis.",
+        "critical": "Generic prototype reference only; not a clinical threshold or diagnosis.",
     },
     "hydration": {
-        "normal": "Hydration level is within the normal range.",
-        "warning": "Hydration level is low. Increase water intake.",
-        "critical": "Hydration level is critically low. Seek medical attention.",
+        "normal": "Generic prototype reference only; not a clinical threshold or diagnosis.",
+        "warning": "Generic prototype reference only; not a clinical threshold or diagnosis.",
+        "critical": "Generic prototype reference only; not a clinical threshold or diagnosis.",
     },
     "calories": {
-        "normal": "Calorie intake is within the target range.",
-        "warning": "Calorie intake is outside the target range. Monitor your intake.",
-        "critical": "Calorie intake is far outside the target range.",
+        "normal": "Generic prototype reference only; not a clinical threshold or diagnosis.",
+        "warning": "Generic prototype reference only; not a clinical threshold or diagnosis.",
+        "critical": "Generic prototype reference only; not a clinical threshold or diagnosis.",
     },
     "sleep": {
-        "normal": "Sleep duration is within the normal range.",
-        "warning": "Sleep duration is outside the recommended range. Monitor your sleep.",
-        "critical": "Insufficient or excessive sleep duration. Review your sleep habits.",
+        "normal": "Generic prototype reference only; not a clinical threshold or diagnosis.",
+        "warning": "Generic prototype reference only; not a clinical threshold or diagnosis.",
+        "critical": "Generic prototype reference only; not a clinical threshold or diagnosis.",
     },
     "radiation": {
-        "normal": "Radiation exposure is within the normal range.",
-        "warning": "Radiation exposure is slightly high. Monitor your exposure.",
-        "critical": "High radiation exposure! Seek medical attention.",
+        "normal": "Generic prototype reference only; not a clinical threshold or diagnosis.",
+        "warning": "Generic prototype reference only; not a clinical threshold or diagnosis.",
+        "critical": "Generic prototype reference only; not a clinical threshold or diagnosis.",
     },
+}
+
+WHY_MEASURE = {
+    "oxygen": (
+        "NASA identifies hypoxia as a risk in future exploration missions. "
+        "This SpO2 entry is a recorded value, not a diagnosis or mission threshold.",
+        "NASA: Risk of Hypoxia",
+        "https://www.nasa.gov/reference/risk-of-hypoxia/",
+    ),
+    "heart_rate": (
+        "NASA notes that spaceflight can affect cardiovascular function. "
+        "Recording whether a reading was at rest, during activity, or after exercise "
+        "helps keep comparisons in context.",
+        "NASA: Cardiovascular Adaptations",
+        "https://www.nasa.gov/directorates/esdmd/hhp/cv-risk/",
+    ),
+    "blood_pressure": (
+        "NASA studies cardiovascular changes associated with spaceflight. "
+        "This log preserves readings over time; it does not assess risk or diagnose.",
+        "NASA: Cardiovascular Adaptations",
+        "https://www.nasa.gov/directorates/esdmd/hhp/cv-risk/",
+    ),
+    "temperature": (
+        "NASA identifies habitat temperature control as a closed-environment concern. "
+        "This body-temperature entry is separate from spacecraft environmental "
+        "monitoring.",
+        "NASA: Hostile/Closed Environments",
+        "https://www.nasa.gov/hrp/hazard-hostile-closed-environments/",
+    ),
+    "activity": (
+        "NASA studies exercise as a way to help maintain cardiorespiratory and "
+        "musculoskeletal fitness during spaceflight. This log records activity; "
+        "it is not an exercise prescription.",
+        "NASA: Reduced Fitness Risk",
+        "https://www.nasa.gov/reference/risk-of-reduced-cardiorespiratory-and-musculoskeletal-fitness/",
+    ),
+    "wellbeing": (
+        "NASA identifies isolation and confinement as behavioral-health challenges. "
+        "Mood, stress, and isolation are separate self-reports in this prototype.",
+        "NASA: Isolation and Confinement",
+        "https://www.nasa.gov/hrp/hazard-isolation-and-confinement/",
+    ),
+    "sleep": (
+        "NASA notes that sleep loss and circadian disruption can affect performance "
+        "in isolated missions. These records show reported periods and quality, not "
+        "a clinical sleep assessment.",
+        "NASA: Isolation and Confinement",
+        "https://www.nasa.gov/hrp/hazard-isolation-and-confinement/",
+    ),
 }
 
 # Keep the previous name available to callers that already use it.
 colors = STATUS_COLORS
+
+
+def has_resting_heart_rate_context(context):
+    return context == "At rest"
 
 
 def oxigen_saturation_indicator(value):
@@ -196,17 +248,6 @@ def sleep_hours_indicator(value):
         limits["warning_min"] <= value < limits["normal_min"]
         or limits["normal_max"] < value <= limits["warning_max"]
     ):
-        status = "warning"
-    else:
-        status = "critical"
-    return STATUS_COLORS[status], status
-
-
-def radiation_indicator(value):
-    limits = THRESHOLDS["radiation"]
-    if value < limits["normal_max"]:
-        status = "normal"
-    elif value < limits["warning_max"]:
         status = "warning"
     else:
         status = "critical"

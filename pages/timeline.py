@@ -4,7 +4,7 @@ import pandas as pd
 import streamlit as st
 
 from components import display_timeline_event
-from storage import load_timeline
+from storage import build_timeline_trend_data, load_timeline
 
 st.set_page_config(page_title="Health Timeline", layout="wide")
 
@@ -15,12 +15,31 @@ def number_text(value, suffix=""):
     return f"{float(value):g}{suffix}"
 
 
+def source_text(value):
+    if pd.isna(value) or not str(value).strip():
+        return "source not recorded"
+    return str(value)
+
+
+def period_text(start, end):
+    return (
+        f"{pd.Timestamp(start):%Y-%m-%d %H:%M} – "
+        f"{pd.Timestamp(end):%Y-%m-%d %H:%M}"
+    )
+
+
 def event_display_data(event):
     event_type = event["event_type"]
     metrics = []
     details = []
 
     if event_type == "Health check-in":
+        source = event["measurement_source"]
+        source_suffix = (
+            f" · {source}"
+            if pd.notna(source) and str(source).strip()
+            else " · source not recorded"
+        )
         for label, field, suffix in (
             ("Heart rate", "bpm", " bpm"),
             ("SpO₂", "spo2", "%"),
@@ -29,10 +48,10 @@ def event_display_data(event):
         ):
             value = number_text(event[field], suffix)
             if value is not None:
-                metrics.append((label, value))
+                metrics.append((f"{label}{source_suffix}", value))
         if pd.notna(event["systolic"]) and pd.notna(event["diastolic"]):
             metrics.append((
-                "Blood pressure",
+                f"Blood pressure{source_suffix}",
                 f"{number_text(event['systolic'])}/{number_text(event['diastolic'])} mmHg",
             ))
         details.extend([
@@ -43,14 +62,30 @@ def event_display_data(event):
         ])
     elif event_type == "Activity":
         for label, field, suffix in (
-            ("Average BPM", "bpm_average", " bpm"),
-            ("Maximum BPM", "bpm_max", " bpm"),
-            ("Calories burned", "calories_burned_estimated", " kcal (estimated)"),
+            (
+                f"Average BPM · {source_text(event['bpm_average_source'])}",
+                "bpm_average",
+                " bpm",
+            ),
+            (
+                f"Maximum BPM · {source_text(event['bpm_max_source'])}",
+                "bpm_max",
+                " bpm",
+            ),
+            (
+                f"Calories burned · {source_text(event['calories_source'])}",
+                "calories_burned_estimated",
+                " kcal (estimated)",
+            ),
             ("Perceived intensity", "intensity", "/10"),
         ):
             value = number_text(event[field], suffix)
             if value is not None:
                 metrics.append((label, value))
+        metrics.append((
+            "Activity period",
+            period_text(event["period_start"], event["period_end"]),
+        ))
         details.extend([
             ("Activity", event["context"]),
             ("Description", event["description"]),
@@ -71,7 +106,7 @@ def event_display_data(event):
         }
         mood = event["mood"]
         if pd.notna(mood):
-            metrics.append(("Mood", mood_labels[int(mood)]))
+            metrics.append(("Mood · self-reported", mood_labels[int(mood)]))
         details.extend([
             ("Stress", event["stress"]),
             ("Feeling of isolation", event["isolation"]),
@@ -81,7 +116,11 @@ def event_display_data(event):
     elif event_type == "Sleep":
         duration = number_text(event["sleep_hours"], " hours")
         if duration is not None:
-            metrics.append(("Sleep duration", duration))
+            metrics.append(("Sleep duration · derived from period", duration))
+        metrics.append((
+            "Sleep period",
+            period_text(event["period_start"], event["period_end"]),
+        ))
         details.extend([
             ("Sleep quality", event["sleep_quality"]),
             ("Period start", event["period_start"]),
@@ -98,6 +137,10 @@ st.caption(
     "Follow health measurements, activities, well-being, and sleep in one chronological view."
 )
 st.caption("Use the app navigation to return to the Dashboard or open Calendar.")
+st.caption(
+    "Indicator categories are generic prototype references, not clinical thresholds "
+    "or NASA protocols. Values are plotted as individual records, without interpolation."
+)
 
 timeline = load_timeline()
 if timeline.empty:
@@ -183,32 +226,32 @@ with trends_tab:
     }
     trend_label = st.selectbox("Indicator", options=list(trend_options))
     metric = trend_options[trend_label]
-    trend_data = recent[["timestamp", "event_type", "context"]].copy()
-    if metric == "heart_rate":
-        trend_data["value"] = (
-            recent["bpm"]
-            .combine_first(recent["bpm_average"])
-            .combine_first(recent["bpm_max"])
-        )
-    else:
-        trend_data["value"] = recent[metric]
-
-    trend_data = trend_data.dropna(subset=["value"]).sort_values("timestamp")
+    trend_data = build_timeline_trend_data(recent, metric)
     if trend_data.empty:
         st.info("No values for this indicator in the selected date range.")
     else:
-        chart_column, context_column = st.columns([1.5, 1])
-        with chart_column:
-            st.line_chart(
-                trend_data,
-                x="timestamp",
-                y="value",
-                height=320,
-            )
-        with context_column:
-            st.caption("Measurement context for the plotted values")
-            st.dataframe(
-                trend_data[["timestamp", "event_type", "context", "value"]],
-                hide_index=True,
-                width="stretch",
-            )
+        st.scatter_chart(
+            trend_data,
+            x="timestamp",
+            y="value",
+            color="series",
+            y_label=trend_label,
+            height=320,
+        )
+        st.caption("Recorded measurement context and source")
+        st.dataframe(
+            trend_data[
+                [
+                    "timestamp",
+                    "period_start",
+                    "period_end",
+                    "event_type",
+                    "measurement",
+                    "context",
+                    "source",
+                    "value",
+                ]
+            ],
+            hide_index=True,
+            width="stretch",
+        )

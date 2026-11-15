@@ -11,6 +11,8 @@ from components import (
 )
 from indicators import (
     INDICATOR_MESSAGES,
+    WHY_MEASURE,
+    has_resting_heart_rate_context,
     heart_rate_indicator,
     oxigen_saturation_indicator,
     pressure_indicator,
@@ -62,6 +64,13 @@ def last_data_value(data, column):
     return None if values.empty else values.iloc[-1]
 
 
+def display_why_measure(key):
+    explanation, source_label, source_url = WHY_MEASURE[key]
+    with st.expander("Why track this?"):
+        st.write(explanation)
+        st.markdown(f"[{source_label}]({source_url})")
+
+
 def timeline_event_summary(event):
     if event["event_type"] == "Health check-in":
         values = []
@@ -72,19 +81,46 @@ def timeline_event_summary(event):
             value = event[field]
             if pd.notna(value):
                 values.append(f"{label} {float(value):g}{suffix}")
+        source = event["measurement_source"]
+        source = (
+            "Not recorded"
+            if pd.isna(source) or not str(source).strip()
+            else str(source)
+        )
+        values.append(f"Source: {source}")
         return " · ".join(values)
 
     if event["event_type"] == "Activity":
         description = event["description"]
-        return "" if pd.isna(description) else str(description)
+        details = [] if pd.isna(description) else [str(description)]
+        for label, field, source_field, suffix in (
+            ("Average BPM", "bpm_average", "bpm_average_source", " bpm"),
+            ("Maximum BPM", "bpm_max", "bpm_max_source", " bpm"),
+            (
+                "Calories burned (estimated)",
+                "calories_burned_estimated",
+                "calories_source",
+                " kcal",
+            ),
+        ):
+            value = event[field]
+            if pd.notna(value):
+                source = event[source_field]
+                source = (
+                    "source not recorded"
+                    if pd.isna(source) or not str(source).strip()
+                    else str(source)
+                )
+                details.append(f"{label}: {float(value):g}{suffix} · {source}")
+        return " · ".join(details)
 
     if event["event_type"] == "Well-being check-in":
         mood = event["mood"]
-        return f"Mood {int(mood)}/5" if pd.notna(mood) else ""
+        return f"Self-reported mood {int(mood)}/5" if pd.notna(mood) else ""
 
     if event["event_type"] == "Sleep":
         hours = event["sleep_hours"]
-        return f"{float(hours):g} hours" if pd.notna(hours) else ""
+        return f"Duration from recorded period: {float(hours):g} hours" if pd.notna(hours) else ""
 
     return ""
 
@@ -110,9 +146,15 @@ def main():
         systolic = last_data_value(df, "systolic")
         diastolic = last_data_value(df, "diastolic")
         temperature = last_data_value(df, "temperature")
+        latest_bpm_rows = df.dropna(subset=["bpm"]).sort_values("timestamp")
+        latest_bpm = latest_bpm_rows.iloc[-1] if not latest_bpm_rows.empty else None
 
         with left_panel:
             st.header("Health indicators")
+            st.caption(
+                "Range labels use generic prototype references, not clinical "
+                "thresholds or NASA protocols."
+            )
             if not df.empty:
                 latest_check = df["timestamp"].max()
                 st.caption(f"Last health check {format_time_ago(latest_check)}")
@@ -164,9 +206,29 @@ def main():
                                 if isinstance(value, tuple)
                                 else value is None
                             )
+                            rest_context = (
+                                latest_bpm is not None
+                                and has_resting_heart_rate_context(
+                                    latest_bpm["measurement_context"]
+                                )
+                            )
                             if missing:
                                 display_indicator_card(
-                                    label, "—", None, None, INDICATOR_MESSAGES[message_key]
+                                    label,
+                                    "—",
+                                    None,
+                                    None,
+                                    INDICATOR_MESSAGES[message_key],
+                                    WHY_MEASURE[message_key],
+                                )
+                            elif label == "Heart rate" and not rest_context:
+                                display_indicator_card(
+                                    label,
+                                    format_value(value),
+                                    None,
+                                    None,
+                                    INDICATOR_MESSAGES[message_key],
+                                    WHY_MEASURE[message_key],
                                 )
                             else:
                                 color, status = indicator(value)
@@ -176,6 +238,24 @@ def main():
                                     color,
                                     status,
                                     INDICATOR_MESSAGES[message_key],
+                                    WHY_MEASURE[message_key],
+                                )
+                            if label == "Heart rate" and latest_bpm is not None:
+                                bpm_context = latest_bpm["measurement_context"]
+                                bpm_source = latest_bpm["measurement_source"]
+                                bpm_context = (
+                                    "Not recorded"
+                                    if pd.isna(bpm_context) or not str(bpm_context).strip()
+                                    else str(bpm_context)
+                                )
+                                bpm_source = (
+                                    "Not recorded"
+                                    if pd.isna(bpm_source) or not str(bpm_source).strip()
+                                    else str(bpm_source)
+                                )
+                                st.caption(
+                                    f"{bpm_context} · Source: {bpm_source} · "
+                                    f"{latest_bpm['timestamp']:%Y-%m-%d %H:%M}"
                                 )
 
             if df.empty:
@@ -195,11 +275,44 @@ def main():
                     label_visibility="collapsed",
                 )
                 column = indicators[indicator_name]
-                chart = df[["timestamp", column]].dropna().sort_values("timestamp")
+                chart = (
+                    df[
+                        [
+                            "timestamp",
+                            column,
+                            "measurement_context",
+                            "measurement_source",
+                        ]
+                    ]
+                    .dropna(subset=[column])
+                    .sort_values("timestamp")
+                    .rename(columns={column: "value"})
+                )
                 if chart.empty:
                     st.caption("No values are available for this trend yet.")
                 else:
-                    st.line_chart(chart, x="timestamp", y=column, height=240)
+                    chart["context"] = chart["measurement_context"].fillna(
+                        "Not recorded"
+                    )
+                    st.scatter_chart(
+                        chart,
+                        x="timestamp",
+                        y="value",
+                        color="context",
+                        y_label=indicator_name,
+                        height=240,
+                    )
+                    latest_point = chart.iloc[-1]
+                    point_source = latest_point["measurement_source"]
+                    point_source = (
+                        "Not recorded"
+                        if pd.isna(point_source) or not str(point_source).strip()
+                        else str(point_source)
+                    )
+                    st.caption(
+                        f"Latest point: {latest_point['timestamp']:%Y-%m-%d %H:%M} · "
+                        f"{latest_point['context']} · Source: {point_source}"
+                    )
 
             st.divider()
             st.subheader("Recent timeline")
@@ -227,35 +340,35 @@ def main():
                 with st.form("health_check_form"):
                     check_bpm = st.number_input(
                         "Heart rate (bpm)", min_value=30, max_value=200,
-                        value=int(bpm) if bpm is not None else 70,
+                        value=None,
                         key="heart_rate_input"
                     )
                     check_spo2 = st.number_input(
                         "SpO₂ (%)", min_value=70, max_value=100,
-                        value=int(spo2) if spo2 is not None else 98,
+                        value=None,
                         key="spo2_input"
                     )
                     pressure_columns = st.columns(2)
                     with pressure_columns[0]:
                         check_systolic = st.number_input(
                             "Systolic (mmHg)", min_value=80, max_value=200,
-                            value=int(systolic) if systolic is not None else 120,
+                            value=None,
                             key="systolic_input"
                         )
                     with pressure_columns[1]:
                         check_diastolic = st.number_input(
                             "Diastolic (mmHg)", min_value=50, max_value=150,
-                            value=int(diastolic) if diastolic is not None else 80,
+                            value=None,
                             key="diastolic_input"
                         )
                     check_temperature = st.number_input(
                         "Temperature (°C)", min_value=30.0, max_value=45.0,
-                        value=temperature if temperature is not None else 37.0,
+                        value=None,
                         step=0.1, key="temperature_input"
                     )
                     context_choice = st.selectbox(
                         "Measurement context",
-                        ["At rest", "After exercise", "Other"],
+                        ["At rest", "During activity", "After exercise", "Other"],
                         key="checkin_context"
                     )
                     other_context = st.text_input(
@@ -268,9 +381,13 @@ def main():
                         key="checkin_source"
                     )
                     check_radiation = st.number_input(
-                        "Radiation exposure in mSv (optional)",
+                        "Radiation dose in mSv (reference period not recorded)",
                         min_value=0.0, max_value=1000.0, value=None, step=0.1,
                         key="checkin_radiation"
+                    )
+                    st.caption(
+                        "Recorded with its timestamp and source; no exposure limit "
+                        "or alert is applied."
                     )
                     radiation_source_choice = st.selectbox(
                         "Radiation data source",
@@ -285,29 +402,40 @@ def main():
                     )
                     checkin_submitted = st.form_submit_button("Save check-in", type="primary")
                 if checkin_submitted:
-                    context = context_choice
-                    if context_choice == "Other" and other_context.strip():
-                        context = f"Other: {other_context.strip()}"
-                    save_checkin({
-                        "bpm": check_bpm,
-                        "spo2": check_spo2,
-                        "systolic": check_systolic,
-                        "diastolic": check_diastolic,
-                        "temperature": check_temperature,
-                        "measurement_context": context,
-                        "measurement_source": measurement_source,
-                        "symptoms": symptoms.strip() or None,
-                        "observation": checkin_observation.strip() or None,
-                        "radiation": check_radiation,
-                        "radiation_source": (
-                            None if check_radiation is None
-                            or radiation_source_choice == "Not provided"
-                            else radiation_source_choice
-                        ),
-                    })
-                    st.success("Health check-in saved.")
+                    required_readings = (
+                        check_bpm,
+                        check_spo2,
+                        check_systolic,
+                        check_diastolic,
+                        check_temperature,
+                    )
+                    if any(value is None for value in required_readings):
+                        st.error("Enter all required health measurements before saving.")
+                    else:
+                        context = context_choice
+                        if context_choice == "Other" and other_context.strip():
+                            context = f"Other: {other_context.strip()}"
+                        save_checkin({
+                            "bpm": check_bpm,
+                            "spo2": check_spo2,
+                            "systolic": check_systolic,
+                            "diastolic": check_diastolic,
+                            "temperature": check_temperature,
+                            "measurement_context": context,
+                            "measurement_source": measurement_source,
+                            "symptoms": symptoms.strip() or None,
+                            "observation": checkin_observation.strip() or None,
+                            "radiation": check_radiation,
+                            "radiation_source": (
+                                None if check_radiation is None
+                                or radiation_source_choice == "Not provided"
+                                else radiation_source_choice
+                            ),
+                        })
+                        st.success("Health check-in saved.")
 
             with activity_tab:
+                display_why_measure("activity")
                 with st.form("activity_form"):
                     activity_type = st.text_input("Activity type", key="activity_type")
                     activity_description = st.text_area(
@@ -415,6 +543,7 @@ def main():
                         st.success("Activity saved.")
 
             with wellbeing_tab:
+                display_why_measure("wellbeing")
                 with st.form("wellbeing_form"):
                     mood = st.radio(
                         "Mood",
@@ -468,6 +597,7 @@ def main():
                     st.success("Well-being check-in saved.")
 
             with sleep_tab:
+                display_why_measure("sleep")
                 with st.form("sleep_form"):
                     sleep_now = datetime.now().replace(second=0, microsecond=0)
                     sleep_start_default = sleep_now - timedelta(hours=8)

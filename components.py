@@ -32,6 +32,8 @@ def load_indicator_styles():
             border-radius: 0.4rem;
             font-size: 0.875rem;
             line-height: 1.35;
+            background: rgba(127, 127, 127, 0.08);
+            border-left: 0.25rem solid #6b8f9e;
         }
         .indicator-feedback span {
             display: block;
@@ -39,18 +41,6 @@ def load_indicator_styles():
         .indicator-status {
             font-size: 0.9rem;
             font-weight: 600;
-        }
-        .indicator-feedback-normal {
-            background: rgba(0, 128, 0, 0.1);
-            border-left: 0.25rem solid green;
-        }
-        .indicator-feedback-warning {
-            background: rgba(255, 165, 0, 0.12);
-            border-left: 0.25rem solid orange;
-        }
-        .indicator-feedback-critical {
-            background: rgba(255, 0, 0, 0.1);
-            border-left: 0.25rem solid red;
         }
         .dashboard-timeline-item {
             margin: 0.45rem 0;
@@ -93,28 +83,42 @@ def load_indicator_styles():
 
 
 def display_indicator_status(color, status, messages):
+    range_label = (
+        "Within the app's generic reference range"
+        if status == "normal"
+        else "Outside the app's generic reference range"
+    )
     st.markdown(
-        f"<span class='indicator-status' style='color: {color};'>"
-        f"Status: {status.capitalize()}</span>",
+        f"<span class='indicator-status'>{range_label}</span>",
         unsafe_allow_html=True,
     )
     message = messages[status]
-    role = "alert" if status == "critical" else "status"
     st.markdown(
-        f"<div class='indicator-feedback indicator-feedback-{status}' "
-        f"title='{escape(message, quote=True)}' role='{role}'>"
+        f"<div class='indicator-feedback' "
+        f"title='{escape(message, quote=True)}' role='status'>"
         f"<span>{escape(message)}</span></div>",
         unsafe_allow_html=True,
     )
 
 
-def display_indicator_card(label, value, color, status, messages):
+def display_indicator_card(
+    label, value, color, status, messages, explanation=None
+):
     with st.container(border=True):
         st.metric(label=label, value=value)
         if status is None:
-            st.caption("No reading yet")
+            st.caption(
+                "No reading yet"
+                if value == "—"
+                else "No generic category applied for this context"
+            )
         else:
             display_indicator_status(color, status, messages)
+        if explanation:
+            text, source_label, source_url = explanation
+            with st.expander("Why measure this?"):
+                st.write(text)
+                st.markdown(f"[{source_label}]({source_url})")
 
 
 def display_dashboard_timeline_event(event_type, timestamp, context, detail):

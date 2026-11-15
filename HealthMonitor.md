@@ -90,18 +90,33 @@ The values below provide context for research and prototype design. They should 
 - Streamlit dashboard with indicators and the latest records.
 - Forms for health check-ins, activity, well-being, and sleep.
 - Local SQLite persistence, with tables for the different record types.
-- Timestamp or time interval recorded according to the event type.
-- Chronological timeline with filters, event-type summaries, and trends.
+- Timestamp or time interval recorded according to the event type; check-in
+  heart-rate context distinguishes rest, activity, and post-exercise readings.
+- Chronological timeline with filters, event-type summaries, and trends that
+  keep heart-rate measurements, contexts, and sources distinct.
+- Dashboard and timeline present trends as recorded points, without connecting
+  values into an implied continuous measurement.
+- Brief, linked NASA context explains why selected indicators and record types
+  are tracked; the explanations are educational, not clinical advice.
+- Indicator categories are generic prototype references, not NASA protocols,
+  clinical thresholds, or diagnoses.
+- Required check-in fields start empty; missing readings are not filled with
+  suggested defaults.
+- `seed_demo_data()` generates clearly labeled synthetic records for an empty
+  database. It refuses to add demo records if any event table already contains
+  data and never deletes or overwrites records. Running `python storage.py`
+  invokes the generator and prints the number of records created.
 - Shared modules for storage, indicator rules, and interface components.
 
 ### In progress or to complete
 
 - Calendar is still marked as WIP.
-- Consolidate the most recent record time and measurement context on the dashboard.
-- Link each indicator to relevant spaceflight hazards and risks with short “why measure this?” explanations.
-- Make it clear that activity and calorie data may be estimates and distinguish their sources.
-- Define how to display sleep over time, including periods that cross midnight.
-- Review status rules: current ranges are generic and need appropriate sourcing and validation before they can guide medical decisions.
+- Review generic status rules before any operational use; the prototype does not
+  provide medical alerts or apply radiation limits.
+- Add a radiation reference-period field if the data source supplies one. Current
+  records retain the entered value, unit, timestamp, and source, but do not
+  interpret the value against an exposure limit.
+- Consider additional usability testing on tablets and with screen readers.
 
 ## 6. Suggested priorities
 
@@ -121,6 +136,7 @@ The values below provide context for research and prototype design. They should 
 - Show each value with its unit, timestamp, and context.
 - Identify whether data was measured by a sensor, reported by the user, or estimated.
 - Treat unrecorded fields as unavailable, never as zero.
+- Compare heart-rate points only with their measurement context and source visible.
 - Do not combine different indicators into a single “health” score.
 - Keep bodily signals, self-reports, activity events, and exposure data distinct.
 - Display trends only when enough records exist; do not invent values between measurements.
@@ -159,3 +175,10 @@ The values below provide context for research and prototype design. They should 
     https://www.nasa.gov/sites/default/files/atoms/files/ochmo_standards_overview_sept_15_2021_francisco.pdf
 11. NASA OCHMO — Radiation Protection Technical Brief (OCHMO-TB-020).  
     https://www.nasa.gov/wp-content/uploads/2023/03/radiation-protection-technical-brief-ochmo.pdf
+12. NASA — Risk of Hypoxia: https://www.nasa.gov/reference/risk-of-hypoxia/
+13. NASA Human Research Program — Hazard: Hostile/Closed Environments:
+    https://www.nasa.gov/hrp/hazard-hostile-closed-environments/
+14. NASA Human Research Program — Hazard: Isolation and Confinement:
+    https://www.nasa.gov/hrp/hazard-isolation-and-confinement/
+15. NASA — Risk of Reduced Cardiorespiratory and Musculoskeletal Fitness:
+    https://www.nasa.gov/reference/risk-of-reduced-cardiorespiratory-and-musculoskeletal-fitness/
