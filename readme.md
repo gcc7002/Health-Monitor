@@ -6,6 +6,8 @@ A Streamlit dashboard for astronauts to log health indicators and follow their e
 
 ### dashboard preview
 
+<img width="1920" height="913" alt="Screenshot 2026-11-15 at 17-32-12 Health Monitoring App" src="https://github.com/user-attachments/assets/83cf2bf2-a913-4030-9ca1-68cef51ad39e" />
+
 ## Features
 
 - Health check-in with automatic timestamp
