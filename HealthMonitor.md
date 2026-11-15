@@ -19,4 +19,4 @@ This will take the user to a quick check, where the inputs will be recorded alon
 
 ### Storage
 
-Health checks are stored in
+Health checks are stored in health.db

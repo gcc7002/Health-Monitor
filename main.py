@@ -4,14 +4,15 @@ from html import escape
 
 
 # Import the database path and save function.
-from storage import save_data
-
+from storage import save_data, DB_PATH, init_db
 st.set_page_config(
     page_title="Health Monitoring App",
     page_icon=":guardsman:",
     layout="wide",
     initial_sidebar_state="expanded"
     )
+#initialize the database
+init_db()
 
 #Just to simulate the values to check the results of the indicators
 
@@ -275,15 +276,15 @@ def main():
                 submitted = st.form_submit_button("Evaluate", type="primary") 
                 if submitted:
                     readings = {
-                        "heart_rate": check_bpm,
-                        "oxygen_saturation": check_spo2,
-                        "systolic_pressure": check_systolic,
-                        "diastolic_pressure": check_diastolic,
+                        "bpm": check_bpm,
+                        "spo2": check_spo2,
+                        "systolic": check_systolic,
+                        "diastolic": check_diastolic,
                         "temperature": check_temperature,
                         "sleep_hours": check_sleep
-                    }
-                    save_data(readings)
-                    st.success("Health check saved to the database.")
+}
+                    save_data(readings, file_path=DB_PATH)
+st.success("Health check saved to the database.")
 
 
 if __name__ == "__main__":
