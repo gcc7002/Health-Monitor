@@ -26,9 +26,13 @@ def load_data(file_path=DB_PATH):
 
 def get_last_value(column: str) -> float:
     df = load_data()
-    value = df[column].iloc[-1]
     if df.empty:
-        value = None
+        return None
+    if column not in df.columns:
+        raise KeyError(f"Unknown health data column: {column}")
+    value = df[column].iloc[-1]
+    if pd.isna(value):
+        return None
     return float(value)
 
 def init_db(file_path=DB_PATH):
