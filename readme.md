@@ -6,7 +6,19 @@ A Streamlit dashboard for astronauts to log health indicators and follow their e
 
 ### dashboard preview
 
-<img width="1920" height="913" alt="Screenshot 2026-11-15 at 17-32-12 Health Monitoring App" src="https://github.com/user-attachments/assets/83cf2bf2-a913-4030-9ca1-68cef51ad39e" />
+<img width="1920" height="913" alt="image" src="https://github.com/user-attachments/assets/a969a876-eed3-4483-bbdc-10551781d75e" />
+<img width="1920" height="913" alt="image" src="https://github.com/user-attachments/assets/54c82cdf-d30e-42f8-a359-cf41b3bace46" />
+<img width="965" height="598" alt="image" src="https://github.com/user-attachments/assets/78fc2a9a-4fe0-405a-b2b7-ef876093e34f" />
+
+---
+### timeline
+<img width="1743" height="605" alt="image" src="https://github.com/user-attachments/assets/de2f6646-62cb-4a0d-99de-93511e8acf39" />
+<img width="1913" height="821" alt="image" src="https://github.com/user-attachments/assets/36b91496-9c45-47af-b138-e30089c6f96c" />
+
+###### trends
+
+<img width="1920" height="913" alt="image" src="https://github.com/user-attachments/assets/dbc594df-68cd-4d90-910f-0756b8738b82" />
+
 
 ## Features
 
