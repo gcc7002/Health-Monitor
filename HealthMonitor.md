@@ -16,3 +16,7 @@ classification.
 conditions along with the mission
 
 This will take the user to a quick check, where the inputs will be recorded along with the exact time the check is completed. This will allow us to keep our data clean and monitor health conditions throughout the mission.
+
+### Storage
+
+Health checks are stored in health.db
