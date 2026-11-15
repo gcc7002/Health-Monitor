@@ -1,10 +1,9 @@
 import streamlit as st
-import random
 from html import escape
 
 
 # Import the database path and save function.
-from storage import save_data, DB_PATH, init_db
+from storage import save_data, DB_PATH, init_db, get_last_value
 st.set_page_config(
     page_title="Health Monitoring App",
     page_icon=":guardsman:",
@@ -14,17 +13,17 @@ st.set_page_config(
 #initialize the database
 init_db()
 
-#Just to simulate the values to check the results of the indicators
 
-spo2 = random.randint(85, 100)  # Simulated oxygen saturation value
-bpm = random.randint(40, 120)  # Simulated heart rate value
-systolic = random.randint(90, 160)  # Simulated systolic blood pressure value
-diastolic = random.randint(60, 100)  # Simulated diastolic blood pressure value
-temperature = random.uniform(35.0, 40.0)  # Simulated body temperature value
-hydration = random.randint(40, 100)  # Simulated hydration level value
-calories = random.randint(1500, 3000)  # Simulated calorie intake value
-sleep_hours = random.uniform(4.0, 10.0)  # Simulated sleep hours value
-radiation = random.uniform(0.0, 5.0)  # Simulated radiation exposure value
+
+spo2: float = get_last_value("spo2")
+bpm: float = get_last_value("bpm")
+systolic: float = get_last_value("systolic")
+diastolic: float = get_last_value("diastolic")
+temperature:float = get_last_value("temperature")
+hydration:int  =0
+calories:int =0
+sleep_hours:float = get_last_value("sleep_hours")
+radiation:int =0
 
 
 #These functions return the display color and status for each health indicator.
@@ -128,6 +127,8 @@ def main():
 
     # Health Indicators Section
     st.header("Health Indicators")
+    st.caption(f"last health check was made in {get_last_value("timestamp")}")
+
     st.markdown(
         """
         <style>
@@ -185,9 +186,6 @@ def main():
                     "critical": "Abnormal heart rate! Seek medical attention."
                 })
             with row1[2]:
-                # Simulated blood pressure values
-                systolic = random.randint(90, 160)
-                diastolic = random.randint(60, 100)
                 color, status = pressure_indicator(systolic, diastolic)
                 display_indicator_card("Blood Pressure", f"{systolic}/{diastolic}", color, status, {
                     "normal": "Blood pressure is within the normal range.",
@@ -233,7 +231,7 @@ def main():
                 })
 
 #------------------------------------------------
-#Here's the form that'll gonna register the data
+#Here's the form that register the data
 
     with right_panel:
         if not st.session_state.get("show_health_check_form", False):

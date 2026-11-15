@@ -13,6 +13,23 @@ COLUMNS = [
     "sleep_hours",
 ]
 
+def load_data(file_path=DB_PATH):
+    conn = sqlite3.connect(file_path)
+    try:
+        df = pd.read_sql("SELECT * from checkins",
+            conn,
+            parse_dates=["timestamp"],
+        )
+    finally:
+        conn.close()
+    return df
+
+def get_last_value(column: str) -> float:
+    df = load_data()
+    value = df[column].iloc[-1]
+    if df.empty:
+        value = None
+    return float(value)
 
 def init_db(file_path=DB_PATH):
     """Cria o banco e a tabela, se ainda não existirem."""
